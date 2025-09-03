@@ -1,0 +1,30 @@
+name: single_cell_r_env
+channels:
+  - conda-forge
+  - https://repo.anaconda.com/pkgs/main
+  - https://repo.anaconda.com/pkgs/r
+dependencies:
+  - r-base=4.3.3
+  - conda-forge::r-readxl
+  - conda-forge::r-tidyr
+  - r-ggplot2[version='>=3.5.2']
+  - conda-forge::r-patchwork
+  - bioconda::bioconductor-complexheatmap
+  - conda-forge::r-ggvenn
+  - conda-forge::r-data.table
+  - conda-forge::r-biocmanager
+  - bioconductor-clusterprofiler
+  - conda-forge::r-readr
+  - conda-forge::r-gprofiler2
+  - conda-forge::r-writexl
+  - conda-forge::r-ggridges
+  - conda-forge::r-beepr
+  - conda-forge::r-progressr
+  - conda-forge::r-ggh4x
+  - conda-forge::r-randomforest
+  - r::r-proc
+  - conda-forge::r-tidymodels
+  - conda-forge::r-languageserver
+  - conda-forge::r-clustercrit
+  - conda-forge::r-dynamictreecut
+prefix: /home/hkaufm49/anaconda3/envs/single_cell_r_env
