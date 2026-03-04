@@ -17,13 +17,13 @@ library(ggridges)
 
 # 1. QC of bone marrow mice proteomics from natoli (confidential)
 
-data <- read_xlsx('proteomics_marrow_natoli.xlsx', sheet = 'LPS_Prote', col_names = TRUE )
+data <- read_xlsx('ImmuneNoise/proteomics_marrow_natoli.xlsx', sheet = 'LPS_Prote', col_names = TRUE )
 
 # select only the steady state data
 data_filtered <- data |>
     mutate(gene = str_split_i(ID...1, pattern = "_", i = 1)) |>
     mutate(id = str_split_i(ID...1, pattern = "_", i = 2)) |>
-    select(c(gene, id, UT_R1, UT_R2, UT_R3, UT_R4, UT_R5))
+    dplyr::select(c(gene, id, UT_R1, UT_R2, UT_R3, UT_R4, UT_R5))
 data_filtered
 
 
@@ -50,10 +50,10 @@ quantile_normalisation <- function(df){
 }
 
 data_normalized <- data_filtered |> 
-    select(-c(gene:id)) |> 
+    dplyr::select(-c(gene:id)) |> 
     quantile_normalisation() |> 
     bind_cols(data_filtered[,1:2]) |>
-    select(c(gene, id), everything())
+    dplyr::select(c(gene, id), everything())
 data_normalized
 
 
@@ -65,13 +65,13 @@ data_qc <- data_log |>
     mutate(mean = rowMeans(across(ends_with("_log")))) |>
     mutate(var = rowVars(as.matrix(across(ends_with("_log"))), na.rm = TRUE)) |>
     mutate(sd  = sqrt(var)) |>
-    select(c(gene, id, mean, var, sd), everything())
+    dplyr::select(c(gene, id, mean, var, sd), everything())
 data_qc
 
 
 
 # save df
-save.csv(data_qc, 'proteomics_marrow_natoli_prepped.csv')
+write_tsv(data_qc, 'ImmuneNoise/proteomics_marrow_natoli_prepped.tsv')
 
 
 
@@ -127,7 +127,7 @@ ggsave('comparison/plots/proteomics/protein_marrow_dist.png', plot, width = 15, 
 # 2. correlation of turnover and variability of proteomics
 
 # EB cells: early differentiation
-turnover <- read_xlsx('protein_turnover_sabatier.xlsx', col_names = TRUE, skip = 1)
+turnover <- read_xlsx('ImmuneNoise/protein_turnover_sabatier.xlsx', col_names = TRUE, skip = 1)
 head(turnover)
 
 

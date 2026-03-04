@@ -3,12 +3,12 @@
 # positive values: more old (slow), neg: more new (fast)
 
 
-tunrover_df_raw <- read_excel("protein_turnover_sabatier.xlsx", skip = 1)
+tunrover_df_raw <- read_excel("ImmuneNoise/protein_turnover_sabatier.xlsx", skip = 1)
 head(tunrover_df_raw)
 tunrover_df_raw$PG_group_quantity <- as.numeric(tunrover_df_raw$PG_group_quantity)
 
 # conversion of human to mouse genes
-h2m <- read.delim("reference_gene_sets/20200307_ensembl/human.txt", header = FALSE, sep = "\t")
+h2m <- read.delim("ImmuneNoise/reference_gene_sets/20200307_ensembl/human.txt", header = FALSE, sep = "\t")
 colnames(h2m) <- c("human", "mouse")
 # human has many mouse matches
 unique_h2m <- h2m |>
@@ -35,6 +35,10 @@ head(turnofer_df)
 tail(turnofer_df)
 sum(is.na(turnofer_df$cell_line))
 
+write_tsv(turnofer_df, 'ImmuneNoise/protein_turnover_sabatier_processed.xlsx')
+
+
+# optional
 # fuse with previous df
 fused_df <- variability_df |>
     left_join(turnofer_df, by = 'gene') |>
@@ -74,7 +78,7 @@ plot <- ggplot(fused_df, aes(x = mean_turnover, y = rao_q, color = factor(cell_l
 # check out gene sets and their turnover
 
 
-# get ribosomal proteins and see how many of htem house keeping and then link with protein stability vs not in housekeeping
+# get ribosomal proteins and see how many of them are house keeping and then link with protein stability vs not in housekeeping
 
 # read ribo genes
 ribo_df_raw <- read_excel('GO_ribosome.xlsx')
@@ -88,7 +92,6 @@ ribo_list <- ribo_df |>
     pull(gene) |>
     unique()
 
-
 # tag ribo genes in df
 ribo_df <- strat_df |>
       mutate(`Ribosomal gene` = gene %in% ribo_list) |>
@@ -97,9 +100,14 @@ ribo_df <- strat_df |>
   unique() 
   colnames(strat_df)
   
-# add ribo and gene set data to turnover
-gene_set_turnover_df <- ribo_df |>
-    left_join(fused_df) |> 
+
+
+
+# add  gene set data to turnover and optional: ribo genes
+strat_df <- readRDS("ImmuneNoise/droplet/data/strat_df.rds")
+
+gene_set_turnover_df <- turnofer_df |>
+    left_join(strat_df) |> 
     filter(!is.na(mean_turnover)) |>
     #select(gene, rao_q, mean_turnover,variability_direction, `IFNy response gene`, `LPS response gene`,`TNF response gene`, `TLR response gene` ) |>
     unique() |>
@@ -121,7 +129,7 @@ long_gene_set_df <- gene_set_turnover_df |>
       names_to  = "gene_set",
       values_to = "in_set") |>
     filter(in_set == 1) |>
-    select(gene, rao_q, mean_turnover, gene_set, category) |>
+    select(gene, mean_turnover, gene_set, category) |> # optional: rao_q
     distinct() |>
     arrange(gene, gene_set, category)
 
@@ -165,10 +173,10 @@ plot <- ggplot(df_l, aes( x = mean_turnover, y = gene_set)) +
 
   if (data_source == "facs") {
     print("Saved to: FACS.")
-    ggsave("facs/plots/3_m/Test_15/ridge_turnover_gene_set.png", plot, width = 7, height = 7)
+    ggsave("ImmuneNoise/facs/plots/3_m/Test_15/ridge_turnover_gene_set.png", plot, width = 7, height = 7)
   } else if (data_source == "droplet") {
     print("Saved to: droplet")
-    ggsave("droplet/plots/3_m/Test_15/ridge_turnover_gene_set.png", plot, width = 7, height = 7)
+    ggsave("ImmuneNoise/droplet/plots/3_m/Test_15/ridge_turnover_gene_set_spleen.png", plot, width = 7, height = 7)
   } else {
     stop("Issue when saving.")
   } 
@@ -182,7 +190,7 @@ plot_df <-long_gene_set_df |>
   unique()
 
   # color scheme
-  col_key <- read_excel("color_scheme_categories.xlsx") |>
+  col_key <- read_excel("ImmuneNoise/color_scheme_categories.xlsx") |>
     mutate(col_category = factor(col_category, levels = all_cats))
   col_vec <- setNames(col_key$hex_code, col_key$col_category)
 
@@ -201,10 +209,10 @@ plot_df <-long_gene_set_df |>
 
   if (data_source == "facs") {
     print("Saved to: FACS.")
-    ggsave("facs/plots/3_m/Test_15/ridge_turnover_category.png", plot, width = 7, height = 7)
+    ggsave("ImmuneNoise/facs/plots/3_m/Test_15/ridge_turnover_category_spleen.png", plot, width = 7, height = 7)
   } else if (data_source == "droplet") {
     print("Saved to: droplet")
-    ggsave("droplet/plots/3_m/Test_15/ridge_turnover_category.png", plot, width = 7, height = 7)
+    ggsave("ImmuneNoise/droplet/plots/3_m/Test_15/ridge_turnover_category_spleen.png", plot, width = 7, height = 7)
   } else {
     stop("Issue when saving.")
   } 

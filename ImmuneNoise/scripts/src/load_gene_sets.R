@@ -2,7 +2,7 @@
 
 
 
-load_filter_og_df <- function(data_source, selected_cell_type) {
+load_filter_og_df <- function(data_source, selected_tissue) {
 
   df_main_all <- read.csv(paste0('ImmuneNoise/', data_source, "/data/combined_data.csv"))
 
@@ -17,12 +17,13 @@ load_filter_og_df <- function(data_source, selected_cell_type) {
     df_main_filtered <- df_main_all |>
       filter(age == 3) |>
       mutate(cell_type = str_to_title(cell_type)) |>
-      filter(cell_type == selected_cell_type)# |> # or %in% immune_cell_type_list
+      filter(tissue == selected_tissue)
+      #filter(cell_type == selected_cell_type)# |> # or %in% immune_cell_type_list
       #mutate (lvg = res_var < 0.5) |>
      # mutate (hvg = res_var > 3) 
 
     # save
-    write.csv(df_main_filtered, file = paste0("ImmuneNoise/facs/data/df_main_filtered_", selected_cell_type, ".csv"), row.names = FALSE)
+    write.csv(df_main_filtered, file = paste0("ImmuneNoise/facs/data/df_main_filtered_", selected_tissue, ".csv"), row.names = FALSE)
     
   } else if (data_source == "droplet") {
     print("Data source: Droplet.")
@@ -34,12 +35,12 @@ load_filter_og_df <- function(data_source, selected_cell_type) {
     df_main_filtered <- df_main_all |>
       filter(age == 3) |>
       mutate(cell_type = str_to_title(cell_type)) |>
-      filter(cell_type == selected_cell_type) #|> # or %in% immune_cell_type_list
+      filter(tissue == selected_tissue) #|> # or %in% immune_cell_type_list
      # mutate (lvg = res_var < 0.5) |>
       #mutate (hvg = res_var > 3) 
 
     # save
-    write.csv(df_main_filtered, file = paste0("ImmuneNoise/droplet/data/df_main_filtered_", selected_cell_type,".csv"), row.names = FALSE)
+    write.csv(df_main_filtered, file = paste0("ImmuneNoise/droplet/data/df_main_filtered_", selected_tissue,".csv"), row.names = FALSE)
 
   } else if (data_source == "pansci") {
     print("Data source: PanSci")
@@ -53,7 +54,7 @@ load_filter_og_df <- function(data_source, selected_cell_type) {
       #mutate (hvg = res_var > 3) 
       
     # save
-    write.csv(df_main_filtered, file = paste0("ImmuneNoise/pansci/data/df_main_filtered_", selected_cell_type, ".csv"), row.names = FALSE)
+    write.csv(df_main_filtered, file = paste0("ImmuneNoise/pansci/data/df_main_filtered_", selected_tissue, ".csv"), row.names = FALSE)
   }
 
    else {
@@ -65,9 +66,9 @@ load_filter_og_df <- function(data_source, selected_cell_type) {
 
 
 
-tag_imm_dict_genes <- function(data_source, selected_cell_type){
+tag_imm_dict_genes <- function(data_source, selected_tissue){
 #data_source <- "facs"
-  df <- read.csv(paste0("ImmuneNoise/", data_source, "/data/df_main_filtered_", selected_cell_type, ".csv"))
+  df <- read.csv(paste0("ImmuneNoise/", data_source, "/data/df_main_filtered_", selected_tissue, ".csv"))
   imm_dict_gene_list <- readRDS("ImmuneNoise/reference_gene_sets/ImmuneDict/marker_genes_condition.rds")
   imm_dict_gene_names <- names(imm_dict_gene_list)
 
@@ -94,15 +95,15 @@ tag_imm_dict_genes <- function(data_source, selected_cell_type){
 
 
 # add and tag housekeeping genes
-tag_hk_genes <- function(data_source, selected_cell_type) {
+tag_hk_genes <- function(data_source, selected_tissue) {
 
  if (data_source == "facs") {
-  df <- read.csv(paste0("ImmuneNoise/", data_source, "/data/df_main_filtered_", selected_cell_type, ".csv"))
+  df <- read.csv(paste0("ImmuneNoise/", data_source, "/data/df_main_filtered_", selected_tissue, ".csv"))
  } else if (data_source == "droplet") {
-    df <- read.csv(paste0("ImmuneNoise/", data_source, "/data/df_main_filtered_", selected_cell_type, ".csv"))
+    df <- read.csv(paste0("ImmuneNoise/", data_source, "/data/df_main_filtered_", selected_tissue, ".csv"))
  }
   else if (data_source == "pansci") {
-    df <- read.csv(paste0("ImmuneNoise/", data_source, "/data/df_main_filtered_", selected_cell_type, ".csv"))
+    df <- read.csv(paste0("ImmuneNoise/", data_source, "/data/df_main_filtered_", selected_tissue, ".csv"))
  } else {
    print("Issue loading data.")
  }

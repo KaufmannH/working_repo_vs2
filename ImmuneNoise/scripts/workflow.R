@@ -12,7 +12,8 @@ library(purrr)
 library(tibble)
 library(writexl)
 #library(org.Mm.eg.db)
-#library(rtracklayer)
+library(rtracklayer)
+library(patchwork)
 library(circlize)
 library(ComplexHeatmap)
 library(grid)
@@ -128,16 +129,17 @@ heatmap_entropy_bins(master_entropy_df, "pansci")
 
 
 
-# 1. DROPLET
+# 1. DROPLET (right now: spleen 10X)
 
 #basic_df_droplet <- assemble_TMS_df_droplet(write = TRUE)
 
 # takes saved dfs and adds gene sets etc. 
-df_main_filtered <- load_filter_og_df(data_source = "droplet", selected_cell_type = "Hepatocyte")
+df_main_filtered <- load_filter_og_df(data_source = "droplet", selected_tissue = "Spleen") #selected_cell_type = "Hepatocyte"
+head(df_hk)
 
 
 # tag genes in which gene sets they are a part of
-df_hk <- tag_hk_genes(data_source = "droplet", selected_cell_type = "Hepatocyte")
+df_hk <- tag_hk_genes(data_source = "droplet", selected_tissue = "Spleen" ) #selected_cell_type = "Hepatocyte"
 df_hk_lin <- tag_hk_lin_genes(df_hk)
 #df_response_genes <- tag_innate_response_genes(df_hk_lin) # too many
 df_lps <- tag_lps_genes(df_hk_lin)
@@ -153,7 +155,7 @@ df_oocyte <- tag_oocyte_genes(df_meiosis)
 
 
 # short version (for doc): 
-df_hk <- tag_hk_genes(data_source = "droplet", selected_cell_type = "Hepatocyte")
+df_hk <- tag_hk_genes(data_source = "droplet", selected_tissue = "Spleen")
 df_mac <- tag_mac_immune_response(df_hk)
 df_control <- tag_control_genes(df_mac)
 
@@ -169,8 +171,9 @@ tagged_df <- tag_no_gene_set_genes(renamed_df, gene_sets, "droplet")
 
 
 # stratification
-strat_df <- stratify_df(data_source = "droplet", cell_type_selection = "Hepatocyte") # REVERSE # also take df as arg 
+strat_df <- stratify_df(data_source = "droplet", cell_type_selection = NULL) # REVERSE # also take df as arg 
 strat_df <- readRDS("ImmuneNoise/droplet/data/strat_df.rds")
+
 subsampled_strat_df <- readRDS("droplet/data/strat_subsampled_df.rds")
 unique(strat_df$cell_type)
 
@@ -213,7 +216,7 @@ heatmap_entropy_bins(master_entropy_df, "droplet")
 
 
 
-# 2. FACS
+# 2. FACS (right now: hepatocytes)
 
 #basic_df_facs <- assemble_TMS_df_facs(write = TRUE)
 
@@ -307,4 +310,6 @@ t <- strat_df |>
   arrange(perc_hvg)
 head(t)
 dim(t)
+
+
 

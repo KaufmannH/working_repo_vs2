@@ -3,7 +3,7 @@
 
 # filter and prepare expression df (from P1_assemble_TMS_df.)
 
-stratify_df <- function(df = NULL, data_source = NULL, cell_type_selection = NULL) {
+stratify_df <- function(df = NULL, data_source = NULL, tissue_selection = NULL) {
 
   if (is.null(df)) { 
     print("No df given, loading saved df.")

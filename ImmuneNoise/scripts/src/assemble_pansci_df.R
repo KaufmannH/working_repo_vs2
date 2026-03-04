@@ -59,6 +59,8 @@ transfer_cell_type_annotation <- function(so_path) {
 
     # get metadata from seurat object after regnoise pipeline
     age_group <- str_extract(f, "[0-9]+m_(female|male)") # more general regex
+    #age_group <- '12m_female'
+
     so <- readRDS(f)
     meta_df <- so@meta.data
     rm(so)
@@ -77,7 +79,7 @@ transfer_cell_type_annotation <- function(so_path) {
 
 
      # get results tibble from regnoise pipeline with res_var and bootstrapping
-    results_tibble <- readRDS(paste0("working_repo/ImmuneNoise/pansci/data/prepped_for_strat/tmp/results_tibble_", age_group, ".rds"))
+    results_tibble <- readRDS(paste0("ImmuneNoise/pansci/data/prepped_for_strat/tmp/results_tibble_", age_group, ".rds"))
 
     # match via seurat clusters
     results_merged <- results_tibble |>
@@ -85,49 +87,57 @@ transfer_cell_type_annotation <- function(so_path) {
       filter(cell_ontology_class == 'Hepatocytes') |> # REMOVE (select only hepatocytes)
       mutate(cell_ontology_class = 'hepatocyte') 
    
-    dim(results_merged)
-    results_merged[1:10, 1:9] # check head
-    results_merged[2700:2708, 8:15] # check tail
-
     # save
     write_tsv(results_merged, paste0("ImmuneNoise/pansci/data/prepped_for_strat/results_merged_", age_group, ".tsv"))
     all_results[[i]] <- results_merged
   }
   results_merged_all <- bind_rows(all_results)
 
-   write_tsv(results_merged_all, ("ImmuneNoise/pansci/data/prepped_for_strat/results_merged_all_ages.tsv"))
+   write_tsv(results_merged_all, ("ImmuneNoise/pansci/data/prepped_for_strat/results_with_og_clusters.tsv"))
+
+   # remove og cluster info 
+   main_result <- results_merged_all |>
+    select(-Sub_cell_type, -og_clusters)  |>
+    distinct() |>
+    select(gene, age, cluster, gmean, res_var, cell_ontology_class, tissue, everything())
+
+  write_tsv(main_result, ("ImmuneNoise/pansci/data/prepped_for_strat/results_merged_all_ages.tsv"))
+
 }
 
 
 annotate_gene_names <- function(){
 
   file <- read_tsv("ImmuneNoise/pansci/data/prepped_for_strat/results_merged_all_ages.tsv")
-
-  df_clean <- file |>
-    mutate( ensembl_clean = sub("\\.\\d+$", "", gene))
+  df_clean <- file |>  mutate(ensembl_clean = sub("\\.\\d+$", "", gene))
 
   # specify gencode version (M27 is the one used in Pansci)
   gtf <- import("ImmuneNoise/pansci/data/gencode.vM27.annotation.gtf")
 
-  gtf_map <- mcols(gtf)[, c("gene_id", "gene_name")] |>
+  gtf_map_raw <- mcols(gtf)[, c("gene_id", "gene_name")] |>
     as.data.frame() |>
-    distinct() |>                    
-    mutate(
-      ensembl_clean = sub("\\.\\d+$", "", gene_id)  ) |>
-    distinct(ensembl_clean, .keep_all = TRUE) |>
     transmute(
-      ensembl_clean,
-      SYMBOL = gene_name)
+      gene_id,
+      ensembl_clean = sub("\\.\\d+$", "", gene_id),
+      SYMBOL = gene_name) |>
+    distinct(ensembl_clean, .keep_all = TRUE)
+
+  # flag if different symbols have same gene names
+  symbol_count <- gtf_map_raw |>
+    distinct(ensembl_clean, SYMBOL) |>
+    count(SYMBOL, name = "n_ens") 
 
   df_annotated <- df_clean |>
-    left_join(gtf_map, by = "ensembl_clean") |>
+    left_join(gtf_map_raw, by = "ensembl_clean") |>
+    left_join(symbol_count, by = "SYMBOL") |>
     mutate(
-      gene = if_else(!is.na(SYMBOL) & SYMBOL != "", SYMBOL, gene) ) |>
-    dplyr::select(-ensembl_clean, -SYMBOL, -og_clusters, -Sub_cell_type) |>
-    distinct() |>
-    arrange(cluster, gene)
+      gene = case_when(
+        !is.na(SYMBOL) & SYMBOL != "" & n_ens == 1 ~ SYMBOL, 
+        TRUE ~ gene) ) |> 
+    select(-SYMBOL, -n_ens, -gene_id, -ensembl_clean) |>
+    arrange(gene, age, cluster, gmean, res_var, cell_ontology_class, tissue, hvg, mean_resvar_bs) 
+head(df_annotated)
 
-  head(df_annotated)
 
   # optional: check how many % could not be mapped
   df_annotated_check <- df_annotated |>
@@ -143,6 +153,8 @@ annotate_gene_names <- function(){
 
 
 
+
+# this is the quick fix version but it was not used in the end because you cannot chose the same ensembl version as them
 annotate_gene_names_old <- function(){
 
 
@@ -164,19 +176,12 @@ annotate_gene_names_old <- function(){
     dplyr::select(-ensembl_clean, -SYMBOL, -og_clusters, -Sub_cell_type) |>
     distinct() |>
     arrange(cluster, gene)
-  head(df_annotated)
 
   write_tsv(df_annotated, "ImmuneNoise/pansci/data/prepped_for_strat/results_merged_all_ages_annotated.tsv")
 }
 
-#check
-#gene	res_var	gmean	cluster	hvg	mean_resvar_bs	perc.hvg	quant_low	quant_high	tissue	age
-t <- read_tsv(("ImmuneNoise/pansci/data/prepped_for_strat/results_merged_all_ages_annotated.tsv"))
-tail(t)
-dim(t)
-t[11177:11188, 1:7]
-t[3679169:3679179, 1:7]
-unique(t$cell_ontology_class)
+
+
 
 
 assemble_easysci_df <- function(write = FALSE){
@@ -184,9 +189,6 @@ assemble_easysci_df <- function(write = FALSE){
   # load data
   print("Loading data ...")
   gene_expression_data <- read_tsv(("ImmuneNoise/pansci/data/prepped_for_strat/results_merged_all_ages_annotated.tsv"))
-  #gene_expression_data <- read.delim("droplet/droplet_raw_data/full_results_10_22.tsv", header = TRUE, sep = "\t")
-  #annotation_info_raw <- read_excel("droplet/droplet_raw_data/manual_annotation.xlsx")
-  #metadata_cell_numbers_raw <- read.table('droplet/droplet_raw_data/combined_metadata_for_cell_numbers.txt', header = TRUE, sep = "\t") # there are cluster_ids that are not in the annotaiton info
   print("Data loaded.")
 
   # prep df
@@ -206,7 +208,7 @@ head(gene_expression_data_renamed)
 
   # tag LVGs
   df_incl_lvgs <- gene_expression_data_renamed |>
-    mutate(lvg = if_else(res_var < 1, TRUE, FALSE)) |>
+    mutate(lvg = if_else(res_var < 1 & gmean != 0, TRUE, FALSE)) |>
     mutate(hvg = if_else(res_var >= 5 & gmean != 0, TRUE, FALSE))
   head(df_incl_lvgs)
 
@@ -218,11 +220,11 @@ head(gene_expression_data_renamed)
            mutate(cell_type = str_to_lower(cell_type)) |>
     dplyr::select(gene, gmean, cluster_id, cell_type, tissue, age, res_var, perc_hvg, hvg, lvg)
   print("Df is done.")
-  write <- TRUE
+  #write <- TRUE
 
   if (write) {
       # write combined df to a csv
-    write_csv(df_finished, paste0('working_repo/ImmuneNoise/pansci/data/prepped_for_strat/combined_data.csv'))
+    write_csv(df_finished, paste0('ImmuneNoise/pansci/data/prepped_for_strat/combined_data.csv'))
     print("Saved df to data.")
 
    # get cell type names, write to excel for manual selection of innate immune cells
