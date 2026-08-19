@@ -4,6 +4,8 @@
 # the old version is not stephans, a rewritten one by me but also not parallelized at the cluster level
 
 library(tools)
+library(patchwork)
+library(ggplot2)
 
 
 base_dir <- "data/comparison/processing_time_tracking/logs"
@@ -156,10 +158,10 @@ ggsave("data/comparison/processing_time_tracking/tracking_ram.png",
 
 
 
-#  version for getting the total run directly form the processed folder
+#  version for getting the total run directly from the processed folder
 
 
-file_vec <- c("reproduced_vs3", "added_seurat5_vs3", "added_seurat5_integrated", "added_bpcells_fast")
+file_vec <- c("reproduced_vs3", "added_seurat5_vs3", "added_seurat5_integrated", "added_bpcells_fast", 'reproduced_fast')
 
 log_summary_list <- list()
 for (file in file_vec){
@@ -203,8 +205,129 @@ plot <- ggplot(log_summary_df, aes(x = version_label, y = `Duration in h`, group
     axis.title.y = element_text(size = 20),
     panel.grid.minor = element_blank()  )
 
-ggsave("data/comparison/time_tracking.png", plot, width = 15, height = 10, dpi = 300)
+ggsave("data/comparison/processing_time_tracking/time_tracking.png", plot, width = 15, height = 10, dpi = 300)
 
+
+
+
+
+#  enter the results manually
+
+
+log_summary_df <- data.frame(
+  version_label  = c("Original version", "Optimized bootstrapping", "Updated to Seurat5", "Memory optimized" ),
+  `Duration in h` = c(26.55, 16.88, 3.15, 3.35 ),
+  `Memory in GB`  = c(0, 15.39, 9.94, 0),
+  check.names = FALSE)
+
+# order
+log_summary_df$version_label <- factor(log_summary_df$version_label,
+                                        levels = log_summary_df$version_label)
+
+
+# time
+p_duration <- ggplot(log_summary_df, aes(x = version_label, y = `Duration in h`, group = 1)) +
+  geom_line(linewidth = 1, colour = "#5FB4E5") +
+  geom_point(size = 3, colour = "#5FB4E5") +
+  geom_text(aes(label = round(`Duration in h`, 2)), vjust = -0.7, size = 7, color = "#5FB4E5") +
+  scale_y_continuous(n.breaks = 10, limits = c(0, NA)) +
+  labs(y = "Duration (h)") +
+  theme_classic(base_size = 12) +
+  theme(
+    axis.text.x  = element_text(angle = 45, hjust = 1, size = 20),
+    axis.text.y  = element_text(size = 20),
+    axis.title.x = element_blank(),
+    axis.title.y = element_text(size = 20),
+      panel.grid.major.y = element_line(colour = "grey80", linewidth = 0.3),
+    panel.grid.minor   = element_blank())
+
+# memory
+p_memory <- ggplot(log_summary_df, aes(x = version_label, y = `Memory in GB`, group = 1)) +
+  geom_line(linewidth = 1, colour = "#3CBFAE") +
+  geom_point(size = 3, colour = "#3CBFAE") +
+  geom_text(aes(label = round(`Memory in GB`, 2)), vjust = -0.7, size = 7, color = "#3CBFAE") +
+ scale_y_continuous(n.breaks = 10, limits = c(0, NA)) +
+  labs(y = "Memory (GB)") +
+  theme_classic(base_size = 12) +
+  theme(
+    axis.text.x  = element_text(angle = 45, hjust = 1, size = 20),
+    axis.text.y  = element_text(size = 20),
+    axis.title.x = element_blank(),
+    axis.title.y = element_text(size = 20),
+    panel.grid.major.y = element_line(colour = "grey80", linewidth = 0.3),
+    panel.grid.minor   = element_blank())
+
+
+plot <- p_duration + p_memory
+
+ggsave("data/comparison/processing_time_tracking/time_tracking_combined.png", plot, width = 22, height = 12, dpi = 300)
+
+
+
+# cells upscaling
+
+# reproduced 100 000 there not all objects ran: load and count cells
+
+
+#  enter the results manually
+log_summary_df <- data.frame(
+  version_label  = rep(c("10 000 cells", "50 000 cells", "100 000 cells"), 2),
+  version        = rep(c("Original", "Improved"), each = 3),
+  `Duration in h` = c(0, 0, 0,  # Original
+                      0, 0, 8.0), # Improved 
+  `Memory in GB`  = c(0, 0, 0,     # Original
+                      0, 0, 16.7),    # Improved 
+  check.names = FALSE)
+
+# Order factors
+log_summary_df$version_label <- factor(
+  log_summary_df$version_label,
+  levels = c("1 000 cells", "50 000 cells", "100 000 cells")
+)
+
+
+# time
+p_duration <- ggplot(log_summary_df, aes(x = version_label, y = `Duration in h`, color = version, group = version)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  geom_text(aes(label = round(`Duration in h`, 2)), vjust = -0.7, size = 5) +
+  scale_y_continuous(n.breaks = 10, limits = c(0, NA)) +
+  labs(y = "Duration (h)", color = "Version") +
+  scale_color_manual(values = c("Original" = "#5FB4E5", "Improved" = "#FF7F50")) +
+  theme_classic(base_size = 12) +
+  theme(
+    axis.text.x  = element_text(angle = 45, hjust = 1, size = 20),
+    axis.text.y  = element_text(size = 20),
+    axis.title.x = element_blank(),
+    axis.title.y = element_text(size = 20),
+    panel.grid.major.y = element_line(colour = "grey80", linewidth = 0.3),
+    panel.grid.minor   = element_blank(),
+    legend.position = "top"
+  )
+
+p_memory <- ggplot(log_summary_df, aes(x = version_label, y = `Memory in GB`, color = version, group = version)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  geom_text(aes(label = round(`Memory in GB`, 2)), vjust = -0.7, size = 5) +
+  scale_y_continuous(n.breaks = 10, limits = c(0, NA)) +
+  labs(y = "Memory (GB)", color = "Version") +
+  scale_color_manual(values = c("Original" = "#3CBFAE", "Improved" = "#FF7F50")) +
+  theme_classic(base_size = 12) +
+  theme(
+    axis.text.x  = element_text(angle = 45, hjust = 1, size = 20),
+    axis.text.y  = element_text(size = 20),
+    axis.title.x = element_blank(),
+    axis.title.y = element_text(size = 20),
+    panel.grid.major.y = element_line(colour = "grey80", linewidth = 0.3),
+    panel.grid.minor   = element_blank(),
+    legend.position = "top"
+  )
+
+
+
+plot <- p_duration + p_memory
+
+ggsave("data/comparison/processing_time_tracking/time_tracking_upscaling.png", plot, width = 22, height = 12, dpi = 300)
 
 
 

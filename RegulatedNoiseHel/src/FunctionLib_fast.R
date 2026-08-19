@@ -200,16 +200,148 @@ res_var_by_group <- function(so, meta_col, hvg_cutoff = 5, count_slot_name, n_co
   
 }
 
-
-
 # This function takes as an input a seurat object, clusters and a number of cycles and will
 # then perform that many cycles of bootstrapping by choosing random subsets of cells
-# and re-calculating the variability for each gene in those subsets
+# and re-calculating the variability for each gene in those subsets.
+# Structure: sequential over clusters, parallel over iterations.
 res_var_bootstrap <- function(
   so,
   clusters_slot,
+  n_cycles         = 1000,
+  n_cores          = 10,
+  hvg_cutoff       = 5,
+  res_var_cl,
+  keep_all         = FALSE,
+  count_slot_name  = "originalexp",
+  vst_out          = NULL,
+  seed             = 42
+){
+
+
+  cl_vec <- so@meta.data[[clusters_slot]]
+  if (!is.factor(cl_vec)) cl_vec <- factor(cl_vec)
+  cl_levels <- levels(cl_vec)
+
+  # parallel  
+  if (n_cores > 1L) {
+    doParallel::registerDoParallel(n_cores)
+    `%op%` <- `%dopar%`
+  } else {
+    `%op%` <- `%do%`
+  }
+  set.seed(seed); doRNG::registerDoRNG(seed)
+
+  # disable sctransforms internal parallelism 
+  old_mc_cores <- getOption("mc.cores")
+  old_future   <- future::plan()
+  options(mc.cores = 1L)
+  future::plan("sequential")
+  on.exit({
+    options(mc.cores = old_mc_cores)
+    future::plan(old_future)
+  }, add = TRUE)
+
+
+  .subset_vst <- function(vst_base, sel_cells) {
+    vst_local <- vst_base
+    vst_local$cell_attr <- vst_local$cell_attr[sel_cells, , drop = FALSE]
+    vst_local
+  }
+
+  if (is.null(vst_out)) {
+    if (is.null(so@assays$SCT@misc$vst.out)) stop("No vst.out found at so@assays$SCT@misc$vst.out")
+    vst_base <- so@assays$SCT@misc$vst.out
+  } else {
+    vst_base <- vst_out
+  }
+
+  # loop over clusters
+  out_list <- vector("list", length(cl_levels))
+  names(out_list) <- cl_levels
+
+  for (cl in cl_levels) {
+    message("Cluster ", cl)
+    cells_filter <- cl_vec == cl
+    cell_names   <- colnames(so)[cells_filter]
+    n_cells      <- length(cell_names)
+
+    if (n_cells < 2L) {
+      message("  Skip: only ", n_cells, " cell(s)")
+      next
+    }
+
+    umi_cl <- so@assays[[count_slot_name]]@counts[, cell_names, drop = FALSE]
+
+    # pre-generate unique IDs (reused every iteration)
+    unique_ids <- paste0("cell_", seq_len(n_cells))
+
+    hvgs <- res_var_cl %>%
+      dplyr::filter(cluster == cl & hvg %in% TRUE)
+    keep_genes <- if (keep_all) rownames(umi_cl) else hvgs$gene
+
+    # parallel over iterations
+    iter_tbl <-
+      foreach::foreach(iter = seq_len(n_cycles),
+                       .combine = "rbind",
+                       .packages = c("tibble", "dplyr", "sctransform"),
+                       .export   = c()) %op% {
+
+        # bootstrap sample of cells with replacement
+        sel <- sample.int(n_cells, size = n_cells, replace = TRUE)
+        sel_cells <- cell_names[sel]
+
+        # slice counts
+        umi_subset     <- umi_cl[, sel, drop = FALSE]
+        vst_out_subset <- .subset_vst(vst_base, sel_cells)
+
+        colnames(umi_subset) <- unique_ids
+        rownames(vst_out_subset$cell_attr) <- unique_ids
+
+        # residual variance per gene for this bootstrap
+        ResVar <- sctransform::get_residual_var(
+          vst_out = vst_out_subset,
+          umi     = umi_subset)
+
+        boolean_hvg <- ResVar >= hvg_cutoff
+
+        tb <- tibble::tibble(
+          gene        = names(ResVar),
+          boolean_hvg = unname(boolean_hvg),
+          ResVar      = unname(ResVar),
+          iter        = iter)
+
+        if (!keep_all) {
+          tb <- dplyr::filter(tb, gene %in% keep_genes)
+        }
+
+        tb
+      }
+
+    if (!is.null(iter_tbl) && nrow(iter_tbl)) {
+      iter_tbl$cluster <- cl
+      out_list[[cl]] <- iter_tbl
+    }
+
+    rm(umi_cl); gc()
+  }
+
+  out <- dplyr::bind_rows(out_list)
+  if (is.null(out) || nrow(out) == 0L) {
+    tibble::tibble(gene = character(), boolean_hvg = logical(),
+                   ResVar = numeric(), iter = integer(), cluster = character())
+  } else {
+    out
+  }
+}
+
+
+
+# mar 9th 2026: crashed bc of nested loops in sctransform::get_residual_var(), fixed issue and made new function
+res_var_bootstrap_og2 <- function(
+  so,
+  clusters_slot,
   n_cycles    = 1000,
-  n_cores     = 1,
+  n_cores     = 10,
   hvg_cutoff  = 5,
   res_var_cl,
   keep_all    = FALSE,

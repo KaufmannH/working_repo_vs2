@@ -2,40 +2,48 @@ This is where I document what changes in what run.
 
 
 Reproducing
-
 1. vs1: just taking the script and the object, no changes made: cluster numbering changed
 2. vs2: run the same again to see if there are differences between runs: no. 
 3. vs3: impose clusters of stephans object to get rid of differences visible in vs1: HVG/LVG overlap low
 4. vs4: dont rerun SCT: slight changes
+5. vs5: no changes, just rerun for time tracking
 
 Seurat5
-
 1. vs1: kept the FunctionLib and changed the SCT function from seurat to the separate small ones: no real overlap
 2. vs2: imposed clusters form stephans object (started with testrun, new cells in there, probably corrupted) -> only 1 object run
 3. vs3: not rerunning SCT: slight changes
 
 
 Seurat5 integrated
-1. vs1: discarded the FunctionLib of stephan, rewrote resvar table and bootstrapping function to match the seruat implemented SCT function (only this works for BL cells), no doublet detection
+1. vs1: discarded the FunctionLib of stephan, rewrote resvar table and bootstrapping function to match the seruat implemented SCT function (only this works for BP cells), no doublet detection
+2. vs2: nothing changed, just reran for RAM monitoring
+3. vs3: nothing changes, reran for reproducibility
 
+Seurat5 improved
+1. vs1: match the bs structure to the reproduced + fast one
 
 
 
 BPcells
-
 1. vs1: Imposing of clusters, new version of how seurat5 stores SCT model, og bootstrapping function (?)
-2. vs2: new bootstrapping function, same as in seurat5 integrated
 
+
+BP cells fast
+1. vs1: new bootstrapping function, same as in seurat5 integrated
+
+
+BP cells fast improved
+1. vs1: changed the bs functions and resvar calc to match the og function in functionality better
+2. vs2: changed the bs structure to match exactly the reproduced fast version
 
 
 Old + fast
 1. vs1: old seurat + fast bootstrapping. some cells dont correlate at all in resvar
 2. vs2: same but removed the LVG calc thing. now well reproduced
-
+3. vs3: changed the seed in the bootstrapping to being reset in each cluster (in RegulatedNoiseJoint rn)
 
 
 Pansci liver
-
 1. vs1:  old seurat + fast boostrapping function. got rid of doublet detection. 
 (still not final bc we have to debug the old + fast pipeline)
 2. vs2: same as vs1 but got rid of the lvg tagging in the results. (old + fast + pansci) ran. 
@@ -43,4 +51,11 @@ Pansci liver
 4. vs4: add tsc results save, only run WT mice
 
 
+Cell number scaling
 
+- done with hepatocytes from '/share/NoiseControlCenter_data/data/pansci/regnoise_upstream/data/prepped_for_pipeline/Hepatocytes'
+
+1. Pipeline_server_fast_hepatocytes: adjust cell numbers, saved to: processed/fast_100000_cells, ...
+2. Pipeline_server_hepatocytes: adjust cell numbers, saved to: processed/fast_100000_cells, ..
+
+this is just for running statistics, can be deleted after to avoid confusion

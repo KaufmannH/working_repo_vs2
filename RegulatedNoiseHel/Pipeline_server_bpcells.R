@@ -56,7 +56,7 @@ ram_start <- mem_used()
 so_folder <- file.path("data/rawdata")
 
 # Setup Output folders
-out_folder <- "data/processed/added_bpcells_test"          
+out_folder <- "data/processed/added_bpcells"          
 if (!file.exists(out_folder)) dir.create(out_folder)
 
 

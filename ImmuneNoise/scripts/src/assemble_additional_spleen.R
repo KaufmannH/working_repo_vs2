@@ -29,18 +29,25 @@ results_tibble[1:10, 4:11]
 
 
 
-assemble_additional_spleen <- function(write = FALSE){
+assemble_spleen_10X <- function(write = FALSE){
 
   # load data
   print("Loading data ...")
   gene_expression_data <- read_tsv("/home/hkaufm49/analyses/NoiseControlCenter/RegulatedNoiseJoint/data/processed/spleen_additional/results_tibble.tsv")
   print("Data loaded.")
 
-head(gene_expression_data)
+  # add cell type info 
+  cell_type_annotation_df <- read_tsv('ImmuneNoise/spleen_10X/data/cell_type_annotation_table.tsv')
+head(cell_type_annotation_df)
+
   # prep dfs
   gene_expression_data <- gene_expression_data |>
-    mutate(cluster_id = paste0(tissue , "_", age, "_", cluster)) 
+    mutate(cluster_id = paste0(age, "_male_", cluster)) |>
+    left_join(cell_type_annotation_df, by = 'cluster_id') |>
+     mutate(cell_type = lineage)
   head(gene_expression_data)
+  unique(gene_expression_data$cell_type)
+
   # every biological replicate and tissue have the same number of rows (genes)
 
   # tag LVGs
@@ -53,13 +60,13 @@ head(gene_expression_data)
   df_finished <- df_incl_lvgs |>
     mutate(age = as.integer(str_extract(age, "\\d+(?=m)"))) |>
     rename(perc_hvg = perc.hvg) |>
-    mutate( cell_type = 'Spleenocytes')  |>
+    #mutate(cell_type = 'Spleenocytes')  |>
     select(gene, gmean, cluster_id, cell_type, tissue, age, res_var, perc_hvg, hvg, lvg)
   print("Df is done.")
  
   if (write) {
       # write combined df to a csv
-    write.csv(df_finished, '/home/hkaufm49/analyses/Spleen_10X/data/combined_data.csv')
+    write.csv(df_finished, '/home/hkaufm49/analyses/working_repo/ImmuneNoise/spleen_10X/data/combined_data.csv')
     print("Saved df to data.")
 
   }

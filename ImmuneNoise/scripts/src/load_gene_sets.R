@@ -2,7 +2,7 @@
 
 
 
-load_filter_og_df <- function(data_source, selected_tissue) {
+load_filter_og_df <- function(data_source, tissue_selection = NULL, selected_cell_type_list) {
 
   df_main_all <- read.csv(paste0('ImmuneNoise/', data_source, "/data/combined_data.csv"))
 
@@ -14,16 +14,18 @@ load_filter_og_df <- function(data_source, selected_tissue) {
       pull(innate_cell)
 
     # filter df
+    if (!is.null(tissue_selection)) { df_main_all <- filter(df_main_all, tissue == tissue_selection)}
+
     df_main_filtered <- df_main_all |>
       filter(age == 3) |>
-      mutate(cell_type = str_to_title(cell_type)) |>
-      filter(tissue == selected_tissue)
-      #filter(cell_type == selected_cell_type)# |> # or %in% immune_cell_type_list
+      filter(cell_type %in% selected_cell_type_list) |>
+      mutate(cell_type = str_to_title(cell_type)) 
+
       #mutate (lvg = res_var < 0.5) |>
      # mutate (hvg = res_var > 3) 
 
     # save
-    write.csv(df_main_filtered, file = paste0("ImmuneNoise/facs/data/df_main_filtered_", selected_tissue, ".csv"), row.names = FALSE)
+    write.csv(df_main_filtered, file = paste0("ImmuneNoise/facs/data/df_main_filtered.csv"), row.names = FALSE)
     
   } else if (data_source == "droplet") {
     print("Data source: Droplet.")
@@ -32,15 +34,18 @@ load_filter_og_df <- function(data_source, selected_tissue) {
       pull(innate_cell)
     
     # filter df
+    if (!is.null(tissue_selection)) { df_main_all <- filter(df_main_all, tissue == tissue_selection)}
+
     df_main_filtered <- df_main_all |>
       filter(age == 3) |>
-      mutate(cell_type = str_to_title(cell_type)) |>
-      filter(tissue == selected_tissue) #|> # or %in% immune_cell_type_list
+      filter(cell_type %in% selected_cell_type_list) |>
+      mutate(cell_type = str_to_title(cell_type)) 
+
      # mutate (lvg = res_var < 0.5) |>
       #mutate (hvg = res_var > 3) 
 
     # save
-    write.csv(df_main_filtered, file = paste0("ImmuneNoise/droplet/data/df_main_filtered_", selected_tissue,".csv"), row.names = FALSE)
+    write.csv(df_main_filtered, file = paste0("ImmuneNoise/droplet/data/df_main_filtered.csv"), row.names = FALSE)
 
   } else if (data_source == "pansci") {
     print("Data source: PanSci")
@@ -54,7 +59,21 @@ load_filter_og_df <- function(data_source, selected_tissue) {
       #mutate (hvg = res_var > 3) 
       
     # save
-    write.csv(df_main_filtered, file = paste0("ImmuneNoise/pansci/data/df_main_filtered_", selected_tissue, ".csv"), row.names = FALSE)
+    write.csv(df_main_filtered, file = paste0("ImmuneNoise/pansci/data/df_main_filtered.csv"), row.names = FALSE)
+
+  } else if (data_source == "spleen_10X") {
+    print("Data source: spleen 10X")
+    
+    # filter df
+    df_main_filtered <- df_main_all |>
+      filter(cell_type %in% selected_cell_type_list) |>
+      mutate(cell_type = str_to_title(cell_type)) 
+    
+     # mutate (lvg = res_var < 0.5) |>
+      #mutate (hvg = res_var > 3) 
+      
+    # save
+    write.csv(df_main_filtered, file = paste0("ImmuneNoise/spleen_10X/data/df_main_filtered.csv"), row.names = FALSE)
   }
 
    else {
@@ -95,15 +114,18 @@ tag_imm_dict_genes <- function(data_source, selected_tissue){
 
 
 # add and tag housekeeping genes
-tag_hk_genes <- function(data_source, selected_tissue) {
+tag_hk_genes <- function(data_source) {
 
  if (data_source == "facs") {
-  df <- read.csv(paste0("ImmuneNoise/", data_source, "/data/df_main_filtered_", selected_tissue, ".csv"))
+  df <- read.csv(paste0("ImmuneNoise/", data_source, "/data/df_main_filtered.csv"))
  } else if (data_source == "droplet") {
-    df <- read.csv(paste0("ImmuneNoise/", data_source, "/data/df_main_filtered_", selected_tissue, ".csv"))
+    df <- read.csv(paste0("ImmuneNoise/", data_source, "/data/df_main_filtered.csv"))
  }
   else if (data_source == "pansci") {
-    df <- read.csv(paste0("ImmuneNoise/", data_source, "/data/df_main_filtered_", selected_tissue, ".csv"))
+    df <- read.csv(paste0("ImmuneNoise/", data_source, "/data/df_main_filtered.csv"))
+  } 
+  else if (data_source == "spleen_10X") {
+    df <- read.csv(paste0("ImmuneNoise/", data_source, "/data/df_main_filtered.csv"))
  } else {
    print("Issue loading data.")
  }
@@ -215,6 +237,121 @@ tag_innate_response_genes <- function(df) {
    # mutate(across(c( hvg, lvg), ~replace_na(., FALSE))) |>
    # mutate(gmean = ifelse(Not_expressed_immune_response_gene, 0, gmean)) 
 
+  return(df)
+}
+
+
+tag_protein_coding_genes <- function (df){
+
+  biotypes_df <- read_tsv('/home/hkaufm49/analyses/NoiseControlCenter/immune_department/switching_prediction/data/gene_biotype/gene_biotypes.tsv')
+
+  protein_coding_list <- biotypes_df |>
+    select(gene, protein_coding) |>
+    filter(protein_coding == 1) |>
+    pull(gene) |>
+    unique()
+
+  df <- df |>
+     mutate(Protein_coding_gene = gene %in% protein_coding_list)
+
+  # tag genes not in df
+  all_clusters <- df |> distinct(cluster_id, cell_type, tissue, age)
+  all_combinations <- crossing(all_clusters, gene = protein_coding_list)
+  missing_genes <- anti_join(all_combinations, df, 
+                           by = c("cluster_id", "cell_type", "gene", "tissue", "age"))
+  missing_genes <- missing_genes |>
+  mutate( Protein_coding_gene = TRUE,
+          Not_expressed  = TRUE,
+          gmean = 0)
+  df <- bind_rows(df, missing_genes)
+  
+  return(df)
+}
+
+
+
+tag_miRNA_genes <- function (df){
+
+  biotypes_df <- read_tsv('/home/hkaufm49/analyses/NoiseControlCenter/immune_department/switching_prediction/data/gene_biotype/gene_biotypes.tsv')
+
+  minra_gene_list <- biotypes_df |>
+    select(gene, miRNA) |>
+    filter(miRNA == 1) |>
+    pull(gene) |>
+    unique()
+
+  df <- df |>
+     mutate(miRNA_gene = gene %in% minra_gene_list)
+
+  # tag genes not in df
+  all_clusters <- df |> distinct(cluster_id, cell_type, tissue, age)
+  all_combinations <- crossing(all_clusters, gene = minra_gene_list)
+  missing_genes <- anti_join(all_combinations, df, 
+                           by = c("cluster_id", "cell_type", "gene", "tissue", "age"))
+  missing_genes <- missing_genes |>
+  mutate( miRNA_gene = TRUE,
+          Not_expressed  = TRUE,
+          gmean = 0)
+  df <- bind_rows(df, missing_genes)
+  
+  return(df)
+}
+
+
+
+tag_lncRNA_genes <- function (df){
+
+  biotypes_df <- read_tsv('/home/hkaufm49/analyses/NoiseControlCenter/immune_department/switching_prediction/data/gene_biotype/gene_biotypes.tsv')
+
+  lncrna_gene_list <- biotypes_df |>
+    select(gene, lncRNA) |>
+    filter(lncRNA == 1) |>
+    pull(gene) |>
+    unique()
+
+  df <- df |>
+     mutate(lncRNA_gene = gene %in% lncrna_gene_list)
+
+  # tag genes not in df
+  all_clusters <- df |> distinct(cluster_id, cell_type, tissue, age)
+  all_combinations <- crossing(all_clusters, gene = lncrna_gene_list)
+  missing_genes <- anti_join(all_combinations, df, 
+                           by = c("cluster_id", "cell_type", "gene", "tissue", "age"))
+  missing_genes <- missing_genes |>
+  mutate( lncRNA_gene = TRUE,
+          Not_expressed  = TRUE,
+          gmean = 0)
+  df <- bind_rows(df, missing_genes)
+  
+  return(df)
+}
+
+
+
+tag_ribozyme_genes <- function (df){
+
+  biotypes_df <- read_tsv('/home/hkaufm49/analyses/NoiseControlCenter/immune_department/switching_prediction/data/gene_biotype/gene_biotypes.tsv')
+
+  ribozyme_gene_list <- biotypes_df |>
+    select(gene, ribozyme) |>
+    filter(ribozyme == 1) |>
+    pull(gene) |>
+    unique()
+
+  df <- df |> 
+     mutate(Ribozyme_gene = gene %in% ribozyme_gene_list)
+
+  # tag genes not in df
+  all_clusters <- df |> distinct(cluster_id, cell_type, tissue, age)
+  all_combinations <- crossing(all_clusters, gene = ribozyme_gene_list)
+  missing_genes <- anti_join(all_combinations, df, 
+                           by = c("cluster_id", "cell_type", "gene", "tissue", "age"))
+  missing_genes <- missing_genes |>
+  mutate( Ribozyme_gene = TRUE,
+          Not_expressed  = TRUE,
+          gmean = 0)
+  df <- bind_rows(df, missing_genes)
+  
   return(df)
 }
 
@@ -694,6 +831,38 @@ tag_control_genes <- function(df) {
 
   return(df)
 }
+
+
+# load fasted pathway 
+tag_fasted_genes <- function(df) {
+  fasted_df <- read.csv("ImmuneNoise/reference_gene_sets/de_results_fasted_nk.csv")
+  fasted_gene_list <- fasted_df |>
+    pull(gene) |>
+    unique()
+  fasted_gene_list
+
+head(fasted_df)
+  ordered_df <- fasted_df |>
+    arrange(p_value) 
+head(ordered_df)
+
+  df <- df |>
+    mutate(Fasted_response_gene = gene %in% fasted_gene_list)
+
+  # tag genes not in df
+  all_clusters <- df |> distinct(cluster_id, cell_type, tissue, age)
+  all_combinations <- crossing(all_clusters, gene = fasted_gene_list)
+  missing_genes <- anti_join(all_combinations, df, 
+                           by = c("cluster_id", "cell_type", "gene", "tissue", "age"))
+  missing_genes <- missing_genes |>
+  mutate(Fasted_response_gene = TRUE,
+          Not_expressed  = TRUE,
+          gmean = 0)
+  df <- bind_rows(df, missing_genes)
+
+  return(df)
+}
+
 
 
 # tag not expressed genes (form either FACS or droplet all detected genes)

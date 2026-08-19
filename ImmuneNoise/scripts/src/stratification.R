@@ -3,7 +3,7 @@
 
 # filter and prepare expression df (from P1_assemble_TMS_df.)
 
-stratify_df <- function(df = NULL, data_source = NULL, tissue_selection = NULL) {
+stratify_df <- function(df = NULL, data_source = NULL, cell_type_selection = NULL) {
 
   if (is.null(df)) { 
     print("No df given, loading saved df.")
@@ -17,7 +17,12 @@ stratify_df <- function(df = NULL, data_source = NULL, tissue_selection = NULL) 
     else if (data_source == "pansci") {
       print("Data source: PanSci")
       df <- readRDS("ImmuneNoise/pansci/data/gene_set_df.rds")
-    } else {
+    } 
+    else if (data_source == "spleen_10X") {
+      print("Data source: spleen 10X")
+      df <- readRDS("ImmuneNoise/spleen_10X/data/gene_set_df.rds")
+    } 
+    else {
       stop("Issue in data source or cell type renaming.")
     } 
   }
@@ -59,7 +64,13 @@ stratify_df <- function(df = NULL, data_source = NULL, tissue_selection = NULL) 
       #rename_cols <- endsWith(colnames(df_renamed), " gene")
       #colnames(df_renamed)[rename_cols] <- gsub(" ", "_", colnames(df)[rename_cols])
       saveRDS(df, "ImmuneNoise/pansci/data/strat_df.rds")
-    } else {
+    } 
+     else if (data_source == "spleen_10X") {
+      print("Saved to: spleen 10X")
+      #rename_cols <- endsWith(colnames(df_renamed), " gene")
+      #colnames(df_renamed)[rename_cols] <- gsub(" ", "_", colnames(df)[rename_cols])
+      saveRDS(df, "ImmuneNoise/spleen_10X/data/strat_df.rds")
+    }else {
       stop("Issue when saving.")
     } 
   return(df)
@@ -463,7 +474,7 @@ plot_gene_set_proportions <- function(df, data_source) {
 
 
 gene_set_proportions_compact <- function(df, data_source) {
-
+ 
   gene_set_order <- names(df)[grepl(" gene$", names(df))]
 
    all_cats <- c(
@@ -481,7 +492,7 @@ gene_set_proportions_compact <- function(df, data_source) {
     mutate(
       gene_set    = factor(gene_set, levels = gene_set_order),
       category    = factor(category, levels = all_cats),
-      cluster_plot = cluster_name )|> # paste(cluster_name,  "| ", cell_type ))
+      cluster_plot = cluster_name )|> # paste(cluster_name,  "| ", cell_type )) #cluster_name
     count(gene_set, cluster_plot, category, name = "n_genes") 
    
 
@@ -518,6 +529,60 @@ gene_set_proportions_compact <- function(df, data_source) {
 }
 
 
+
+gene_set_proportions_big_groups <- function(df, data_source) {
+
+  gene_set_order <- names(df)[grepl(" gene$", names(df))]
+
+counts_df <- df |>
+  pivot_longer(
+    cols      = all_of(gene_set_order),
+    names_to  = "gene_set",
+    values_to = "in_set") |>
+  filter(in_set == 1) |>
+  mutate(
+    gene_set     = factor(gene_set, levels = gene_set_order),
+    category     = str_remove(category, " \\d+$"),
+    category = factor(category, levels = c( "HVG",  "Intermediate", "Not expressed", "LVG")),
+    cluster_plot =  paste(cluster_name,  "| ", cell_type )) |>
+  count(gene_set, cluster_plot, category, name = "n_genes") 
+
+
+# 4 colors
+col_vec <- c(
+  "HVG"            = "#B45E82",
+  "Intermediate"   = "#A2C759",
+  "Not expressed"  = "#D9D9D9",
+  "LVG"            = "#84BFE5")
+
+
+plot <- ggplot(counts_df, aes(y = n_genes, x = cluster_plot, fill = category)) +
+  geom_col(position = "fill", width = 0.8) +
+  facet_wrap("gene_set") +
+  labs(y = "Fraction of genes", fill = "Gene groups") +
+  scale_fill_manual(values = col_vec) +
+  guides(fill = guide_legend(nrow = 4)) +
+  theme_classic() +
+  theme(
+    strip.placement       = "outside",
+    strip.text            = element_text(size = 25, face = "bold"),
+    strip.text.y.left     = element_text(angle = 0),
+    strip.text.y.right    = element_blank(),
+    strip.background      = element_blank(),
+    axis.text.y           = element_text(size = 25),
+    axis.title.y          = element_text(size = 25, margin = margin(r = 15)),
+    axis.text.x           = element_text(angle = 45, hjust = 1, size = 20, margin = margin(t = 16)),
+    axis.title.x          = element_blank(),
+    legend.position       = "right",
+    legend.text           = element_text(size = 22),
+    legend.title          = element_text(size = 25),
+    plot.margin           = margin(t = 20, r = 60, b = 50, l = 120))
+
+  ggsave(paste0('ImmuneNoise/', data_source, "/plots/3_m/Test_11/gene_set_proportions_big_groups.png"), width = 32, height = 20)  # 32, 20 # spleen 20, 15 # all 45, 15
+
+
+}
+ 
 
 
 

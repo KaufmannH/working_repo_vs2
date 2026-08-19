@@ -9,8 +9,9 @@ library(purrr)
 library(tibble)
 library(dplyr)
 
-strat_df <- readRDS("ImmuneNoise/pansci/data/strat_df.rds") 
-data_source <- "pansci"
+strat_df <- readRDS(paste0('ImmuneNoise/', data_source, '/data/strat_df.rds'))
+droplet_whole_df <-  read.csv(paste0('ImmuneNoise/', data_source, "/data/combined_data.csv"))
+data_source <- "droplet"
 
 
 long_strat_df <- strat_df |>
@@ -22,25 +23,27 @@ long_strat_df <- strat_df |>
     select(gene, gmean, gene_set, res_var, category) 
 
    all_cats <- c(
+    "Not expressed 0",
    "LVG 1", "LVG 2", "LVG 3", "LVG 4", "LVG 5", "LVG 6",
-  "HVG 1", "HVG 2", "HVG 3", "HVG 4", "HVG 5", "HVG 6", 
    "Intermediate 1",  "Intermediate 2", "Intermediate 3", "Intermediate 4", "Intermediate 5", "Intermediate 6", 
-  "Not expressed 0")
-
-long_strat_df <- long_strat_df |> mutate(category = factor(category, levels = all_cats))
+   "HVG 1", "HVG 2", "HVG 3", "HVG 4", "HVG 5", "HVG 6")
 
 col_dict <- c(
-  "Housekeeping gene" = "#1f78b4",  
-  "Immune response gene"         = "#f5b003", 
+  "Housekeeping gene" = "#4A88BF",  
+  "Immune response gene"         = "#A3C859", 
+  "Protein coding gene" = "#BC458B",
+  "miRNA gene" = "#DC6C61",
+  "lncRNA gene" = "#3E776C",
   "Control gene"         = "#bfbfbf" ,
-   "Other gene"  = "#408709")
+   "Other gene"  = "#FFA311")
 
 unique(long_strat_df$gene_set)
 
-overrepresentaiton_analysis <- function(df, selected_gene_set, selected_category) {
+
+overrepresentaiton_analysis <- function(df, selected_gene_set, selected_category, all_genes_in_data) {
 
      # total number of genes
-     N <- length(unique(df$gene)) 
+     N <- length(all_genes_in_data) 
      # total number of genes in the gene set
      M <- length(df |> filter(gene_set == selected_gene_set) |> pull(gene) |> unique())  
      # number of genes in the bin
@@ -59,10 +62,16 @@ overrepresentaiton_analysis <- function(df, selected_gene_set, selected_category
      # fold enrichment
      fold_enrichment <- i / expected
 
+     # 95% CI using Poisson approximation 
+      ci_lower <- qpois(0.025, i) / expected
+      ci_upper <- qpois(0.975, i) / expected
+
      results_df <- list(p_value = p_over,
           expected = expected,
           observed = i,
-          fold_enrichment = fold_enrichment)
+          fold_enrichment = fold_enrichment,
+          ci_lower = ci_lower,
+           ci_upper = ci_upper)
      return(results_df)
 }
 
@@ -71,10 +80,11 @@ overrepresentaiton_analysis <- function(df, selected_gene_set, selected_category
 result_df <- data.frame()
 category_list <- unique(long_strat_df$category)
 gene_set_list <- unique(long_strat_df$gene_set)
+all_genes_in_data <- unique(droplet_whole_df$gene) # with just the strat df as universe all cats are sig
 
 for (cat in category_list) {
   for (gene_set_name in gene_set_list) {
-    result <- overrepresentaiton_analysis(long_strat_df, gene_set_name, cat)
+    result <- overrepresentaiton_analysis(long_strat_df, gene_set_name, cat, all_genes_in_data)
      result$category <- cat
      result$gene_set <- gene_set_name
      result_df <- dplyr::bind_rows(result_df, result)
@@ -83,18 +93,26 @@ for (cat in category_list) {
 head(result_df)
 
 
-plot_df <-  result_df %>%
+plot_df <- result_df %>%
+  mutate(p_value_adjusted = p.adjust(p_value, method = "BH")) %>%
   mutate(sig = case_when(
-    p_value < 0.001 ~ "***",
-    p_value < 0.01  ~ "**",
-    p_value < 0.05  ~ "*",
+    p_value_adjusted < 0.001 & (fold_enrichment > 1.5 | fold_enrichment < 0.67) ~ "***",
+    p_value_adjusted < 0.01  & (fold_enrichment > 1.5 | fold_enrichment < 0.67) ~ "**",
+    p_value_adjusted < 0.05  & (fold_enrichment > 1.5 | fold_enrichment < 0.67) ~ "*",
     TRUE ~ ""
   ))
+
+
+
+
+plot_df <- plot_df |> mutate(category = factor(category, levels = all_cats))
 
 plot <- ggplot(plot_df, aes(x = category, y = fold_enrichment, fill = gene_set)) +
   geom_col(position = position_dodge(width = 0.8), width = 0.7) +
   scale_fill_manual(values = col_dict) +
   geom_hline(yintercept = 1, linetype = "dashed") +
+ # geom_errorbar(aes(ymin = ci_lower, ymax = ci_upper), 
+            #  position = position_dodge(width = 0.8), width = 0.3) +
   geom_text(
     aes(label = sig),
     position = position_dodge(width = 0.8),
@@ -112,7 +130,7 @@ plot <- ggplot(plot_df, aes(x = category, y = fold_enrichment, fill = gene_set))
           axis.title.y      = element_text(size = 20))
 
 
-  ggsave(paste0('ImmuneNoise/', data_source, "/plots/3_m/Test_16/enrichment_all_clusters.png"), plot, width = 12, height = 5)
+  ggsave(paste0('ImmuneNoise/', data_source, "/plots/3_m/Test_16/enrichment_biotype.png"), plot, width = 15, height = 7) # previously: enrichment_all_clusters
 
 
 

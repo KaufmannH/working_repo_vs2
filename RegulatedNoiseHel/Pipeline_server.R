@@ -18,7 +18,7 @@ SelectedTissues <- "Spleen"
 
 impose_clusters <- TRUE
 testrun <- FALSE
-n_cells <- 800 # only used if testrun == TRUE
+n_cells <- 200 # only used if testrun == TRUE
 
 min_cells <- 100 # minimum number of cells per subgroup/condition (in case of TMS age/sex group)
 min_n_genes <- 500
@@ -53,7 +53,7 @@ environment(SCTransform_v2) <- e1
 so_folder <- file.path("data/rawdata")
 
 # Setup Output folders
-out_folder <- "data/processed/reproduced_test"          
+out_folder <- "data/processed/reproduced"          
 if (!file.exists(out_folder)) dir.create(out_folder)
 
 

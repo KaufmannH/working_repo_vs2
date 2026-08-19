@@ -1,0 +1,7 @@
+Object: obj
+Start: 2025-08-01 10:28:42.93953
+End: 2025-08-01 10:31:55.980089
+Duration (seconds): 193.040558815002
+RAM at start: 0.934 GB
+RAM at end:   0.992 GB
+RAM diff:     0.058 GB

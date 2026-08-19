@@ -22,6 +22,7 @@ new_data_path
 old_spleen_blank <- merge_processed_seurat_objects(paste0(old_data_path, "/seurat_objects"))
 old_spleen <- add_resvar_to_seurat_object(old_spleen_blank, paste0(old_data_path,"/res_var_tables"))
 old_spleen
+
 # reproduced spleen
 reproduced_spleen_blank <- merge_processed_seurat_objects(paste0(new_data_path, "/seurat_objects"))
 reproduced_spleen <- add_resvar_to_seurat_object(reproduced_spleen_blank, paste0(new_data_path,"/res_var_tables"))
@@ -64,7 +65,75 @@ umap_cluster_comparison_grey(age_sex_group, old_data_path, new_data_path, out_pa
 gene_var_group_comparison(df_old, df_new, out_path)
 
 
+# 2.5 compare bootstrapping
 
+bs_stats <- function(tissue, bs_path){
+  
+  bs_path <- 'data/processed/reproduced_vs4/bootstrapping_tables'
+
+  quantile_perc <- c(.025, .975) 
+  tissue <- 'Spleen'
+
+  bs_files <- list.files(bs_path, pattern = "\\.rds$", full.names = TRUE)
+
+  for (f in bs_files) {
+
+   #f <- bs_files[6]
+    message("Reading: ", f)
+    age_group <- str_extract(f, "(?<=_)[0-9]+m_(female|male)(?=\\.rds)")
+   # age_group <- stringr::str_extract(f, "[0-9]{2}_months_[A-Za-z]+")
+    print(paste('age_sex_group = ', age_group))
+    bootstrap_res <- readRDS(f)
+    res_var_cl <- readRDS(paste0('data/processed/reproduced_vs4/res_var_tables/res_var_cl_', tissue , '_', age_group, '.rds' ))
+
+    stats <- bootstrap_res |> 
+      group_by(gene, cluster) |> 
+      summarize(mean_resvar_bs = mean(ResVar),
+                perc.hvg = sum(boolean_hvg) / n(),
+                quant_low = quantile(ResVar, probs = quantile_perc[1]), 
+                quant_high = quantile(ResVar, probs = quantile_perc[2]))
+    
+    results_tmp_tibble <- left_join(res_var_cl, stats, by = c("gene" = "gene", "cluster" = "cluster")) |>
+      mutate(tissue = tissue, age = age_group)
+
+    if (f == bs_files[1]) {
+      results_tibble <- results_tmp_tibble
+    } else {
+      results_tibble <- rbind(results_tibble, results_tmp_tibble)
+    }
+  saveRDS(results_tibble, file = paste0('data/comparison/res_var_table_bootstrapping_reproduced.rds'))
+  results_tibble[1:10, 4:11]
+  }
+}
+
+# compare bs
+bs_new <- readRDS('data/comparison/res_var_table_bootstrapping_new.rds')
+bs_old <- readRDS('data/comparison/res_var_table_bootstrapping_old.rds')
+bs_reproduced <- readRDS('data/comparison/res_var_table_bootstrapping_reproduced.rds')
+head(bs_old)
+unique(bs_old$age)
+dim(bs_old)
+
+bs_new <- bs_reproduced
+
+
+stable_new <- bs_new |> filter(res_var > 5) |> mutate(stable_new = TRUE)
+stable_old <- bs_old |> filter(res_var > 5) |> mutate(stable_old = TRUE)
+
+comparison <- full_join(stable_new, stable_old, by = c("gene", "cluster", 'age')) |> 
+  mutate(
+    stable_new = replace_na(stable_new, FALSE),
+    stable_old = replace_na(stable_old, FALSE),
+    agreement  = stable_new == stable_old)
+
+comparison |>
+  summarise(
+    both_stable     = sum(stable_new & stable_old),
+    only_new_stable = sum(stable_new & !stable_old),
+    only_old_stable = sum(!stable_new & stable_old),
+    pct_agreement   = mean(agreement) * 100)
+
+# the agreement of reproduced and reproduced fast is both 90.9% so the new bs is fine
 
 
 
